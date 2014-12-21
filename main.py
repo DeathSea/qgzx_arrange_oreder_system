@@ -7,7 +7,73 @@ import xlrd
 import os
 import xlwt
 
-class Integrated(object):
+class SouthCampus(object):
+    def __init__(self , xls_sh):
+        self.xls_sh = xls_sh
+        self.GetRows()
+        self.GetCols()
+        self.return_list = [
+            ["", "周一".decode("u8"), "周二".decode("u8"), "周三".decode("u8"), "周四".decode("u8"), "周五".decode("u8"), "周六".decode("u8"), "周日".decode("u8")],
+            ["10:20-12:30", ],
+            ["12:30-14:40", ],
+            ["14:50-17:50", ]]
+
+    def GetRows(self):
+        self.rows = self.xls_sh.nrows
+        return self.rows
+
+    def GetCols(self):
+        self.cols = self.xls_sh.ncols
+        return self.cols
+
+    def do(self , whoheis):
+        #row行
+        #col列
+        #print self.cols,self.rows
+        for i in range(3 , self.rows):
+            a1 , a2 , a3 = 0 , 0 , 0
+            for j in range(1 , self.cols):
+                if 3<=j<=9:
+                    if self.xls_sh.cell_value(i , j) == "":
+                         if j == 3 or j == 4:
+                             a1 += 1
+                         if j == 5 or j == 6:
+                             a2 += 1
+                         if 6 <= j <= 9:
+                             a3 += 1
+            if a1 == 2:#第一个班可以上
+                self.return_list[1].append(whoheis)
+            if a2 == 2:#第二个班可以上
+                self.return_list[2].append(whoheis)
+            if a3 == 4:#第三个班可以上
+                self.return_list[3].append(whoheis)
+            if a1 != 2:#第一个班不能上
+                self.return_list[1].append("")
+            if a2 != 2:#第二个班不能上
+                self.return_list[2].append("")
+            if a3 != 4:#第三个班不能上
+                self.return_list[3].append("")
+
+    def clearup(self):
+        self.rows = 0
+        self.cols = 0
+        self.return_list = [
+            ["" , "周一".decode("u8") , "周二".decode("u8") , "周三".decode("u8") , "周四".decode("u8") , "周五".decode("u8") , "周六".decode("u8") , "周日".decode("u8")],
+            ["10:20-12:30"  , ],
+            ["12:30-14:40"  , ],
+            ["14:50-17:50"  , ]]
+
+    def set_xls_sh(self , xls_sh):
+        self.xls_sh = xls_sh
+        self.clearup()
+        self.GetRows()
+        self.GetCols()
+        return
+
+    def return_lists(self):
+        return self.return_list
+
+class Integrated(object):#本部融合
     def __init__(self):
         self.return_list = []
 
@@ -53,6 +119,67 @@ class Integrated(object):
                     caption = "警告".decode("u8"),
                     style = wx.OK,
                 )
+
+    def ReadFile(self, filename):
+        wob = xlrd.open_workbook(filename)
+        sh  = wob.sheet_by_index(0)
+        return sh
+
+    def WriteFile(self, filename):
+        xs = xlwt.Workbook()
+        st = xs.add_sheet("Sheet1")
+        for i in range(0, self.rows):
+            for j in range(0, self.cols):
+                st.write(i, j, self.return_list[i][j])
+        xs.save(filename)
+
+    def WhatTheManName(self, filename):
+        return os.path.split(filename)[1].split(".")[0]
+
+    def ReturnList(self):
+        return self.return_list
+
+    def ReturnRC(self):
+        return self.rows, self.cols
+
+class Integrated_V2(object):#南校区融合
+    def __init__(self):
+        self.return_list = []
+        self.rows = 4
+        self.cols = 8
+
+    def Main(self, li):
+        Th = self.ReadFile(li[0])
+        self.NSC = SouthCampus(Th)
+        self.NSC.do(self.WhatTheManName(li[0]))
+        thisList = self.NSC.return_lists()
+        self.return_list = thisList
+        del li[0]
+        for i in li:
+            Th = self.ReadFile(i)
+            self.AddToReturnList(Th, self.WhatTheManName(i))
+
+    def AddToReturnList(self, Tsh, whoheis):
+        self.NSC.set_xls_sh(Tsh)
+        self.NSC.do(whoheis)
+        thisList = self.NSC.return_lists()
+        print thisList
+        for i in range(0, self.rows):
+            if thisList[i] == self.return_list[i]:
+                continue
+            for j in range(0, self.cols):
+                print i, j
+                if thisList[i][j] != "" and self.return_list[i][j] == thisList[i][j]:
+                    continue
+                elif self.return_list[i][j] == "":
+                    self.return_list[i][j] = thisList[i][j]
+                elif self.return_list[i][j] != "" and thisList[i][j] != "":
+                    self.return_list[i][j] = self.return_list[i][j] + "、".decode("u8") + thisList[i][j]
+        # wx.MessageBox(
+        #     message = "出了点错误，请检查名字是%s的班表是否有多余的单元".decode("u8")%whoheis,
+        #     caption = "警告".decode("u8"),
+        #     style = wx.OK,
+        # )
 
     def ReadFile(self, filename):
         wob = xlrd.open_workbook(filename)
@@ -165,6 +292,16 @@ class MyFrame(wx.Frame):
             validator = wx.DefaultValidator,
             name = "PreViewButton"
         )
+        self.PreviewSButton = wx.Button(
+            parent = self.panel,
+            id = -1,
+            label = "南校区预览".decode("u8"),
+            pos = (500, 330),
+            size = (80, 29),
+            style = 0,
+            validator = wx.DefaultValidator,
+            name = "PreViewSButton"
+        )
         self.ExportButton = wx.Button(
             parent = self.panel,
             id = -1,
@@ -192,6 +329,7 @@ class MyFrame(wx.Frame):
         )
         self.addButton.Bind(wx.EVT_BUTTON, self.ClickAddButton, self.addButton)
         self.PreviewButton.Bind(wx.EVT_BUTTON, self.ClickPreviewButton, self.PreviewButton)
+        self.PreviewSButton.Bind(wx.EVT_BUTTON, self.ClickSPreviewButton, self.PreviewSButton)
         self.ExportButton.Bind(wx.EVT_BUTTON, self.ClickExportButton, self.ExportButton)
 
         self.Show(True)
@@ -238,6 +376,27 @@ class MyFrame(wx.Frame):
             for j in range(0, len(result_list[i])):
                 self.grid.SetCellValue(row = i, col = j, s = result_list[i][j])
 
+    def ClickSPreviewButton(self, event):
+        self.grid.DeleteCols(0, self.grid.GetNumberCols())
+        self.grid.DeleteRows(0, self.grid.GetNumberRows())
+        self.integrated = Integrated_V2()
+        self.filelist = []
+        for i in range(0, self.xlslist.GetCount()):
+            filename = self.xlslist.GetString(i)
+            if filename != "":
+                self.filelist.append(filename)
+        if len(self.filelist) == 0:
+            return
+        self.integrated.Main(self.filelist)
+        r, c = self.integrated.ReturnRC()
+        self.grid.AppendRows(r)
+        self.grid.AppendCols(c)
+        for i in range(0, self.xlslist.GetCount()):
+            self.xlslist.SetString(i, "")
+        result_list = self.integrated.ReturnList()
+        for i in range(0, len(result_list)):
+            for j in range(0, len(result_list[i])):
+                self.grid.SetCellValue(row = i, col = j, s = result_list[i][j])
 
     def ClickExportButton(self, event):
 
